@@ -21,8 +21,12 @@ class GifCacheManager {
   // Get gif by path
   GifInfo? getGifByPath(String gif) => _caches[gif];
 
-  // Add gif to cache
-  Future<void> addGifToCache(ImageProvider<Object> image) async {
+  /// Add gif to cache
+  /// [image] - gif provider to cache
+  /// [clearTimeout] - afterTimeout remove gif from cache to avoid ram usage
+  /// if [clearTimeout] is null - not call clear func.
+  Future<void> addGifToCache(ImageProvider<Object> image,
+      {Duration? clearTimeout}) async {
     final path = _getImageKey(image);
     if (_caches.containsKey(path)) {
       return;
@@ -30,6 +34,12 @@ class GifCacheManager {
     final frames = await _fetchFrames(image);
 
     _caches.putIfAbsent(_getImageKey(image), () => frames);
+
+    if (clearTimeout != null) {
+      Future.delayed(clearTimeout, () {
+        removeCachedGif(path);
+      });
+    }
   }
 }
 
