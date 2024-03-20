@@ -1,5 +1,5 @@
+import 'package:cached_gif/gif.dart';
 import 'package:flutter/material.dart';
-import 'package:gif/gif.dart';
 
 void main() {
   runApp(const MyApp());
