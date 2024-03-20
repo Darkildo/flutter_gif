@@ -1,7 +1,4 @@
 ///
-/// * author: Pierluigi Zagaria
-/// * email: pierluigizagaria@gmail.com
-///
 /// A package provides an easy way to manage Gifs with animation controllers
 ///
 
@@ -11,6 +8,8 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart';
+
+part 'gif_cache_manager.dart';
 
 final Client _sharedHttpClient = Client();
 
@@ -72,6 +71,7 @@ class Gif extends StatefulWidget {
   final String? semanticLabel;
   final bool excludeFromSemantics;
   final bool useCache;
+  final bool useGlobalCache;
 
   /// Creates a widget that displays a controllable gif.
   ///
@@ -85,6 +85,8 @@ class Gif extends StatefulWidget {
   ///
   /// [onFetchCompleted] is called when the frames fetch finishes and the gif can be
   /// rendered.
+  ///
+  ///[useGlobalCache] fetch info from global cache manager
   ///
   /// Only one of the two can be set: [fps] or [duration]
   /// If [controller.duration] and [fps] are not specified, the original gif
@@ -110,6 +112,7 @@ class Gif extends StatefulWidget {
     this.centerSlice,
     this.matchTextDirection = false,
     this.useCache = true,
+    this.useGlobalCache = true,
   })  : assert(
           fps == null || duration == null,
           'only one of the two can be set [fps] [duration]',
@@ -258,19 +261,6 @@ class _GifState extends State<Gif> with SingleTickerProviderStateMixin {
     }
   }
 
-  /// Get unique image string from [ImageProvider]
-  String _getImageKey(ImageProvider provider) {
-    return provider is NetworkImage
-        ? provider.url
-        : provider is AssetImage
-            ? provider.assetName
-            : provider is FileImage
-                ? provider.file.path
-                : provider is MemoryImage
-                    ? provider.bytes.toString()
-                    : "";
-  }
-
   /// Calculates the [_frameIndex] based on the [AnimationController] value.
   ///
   /// The calculation is based on the frames of the gif
@@ -291,19 +281,27 @@ class _GifState extends State<Gif> with SingleTickerProviderStateMixin {
   Future<void> _loadFrames() async {
     if (!mounted) return;
 
-    GifInfo gif = widget.useCache
-        ? Gif.cache.caches.containsKey(_getImageKey(widget.image))
-            ? Gif.cache.caches[_getImageKey(widget.image)]!
-            : await _fetchFrames(widget.image)
-        : await _fetchFrames(widget.image);
+    GifInfo? gif;
+
+    if (widget.useCache &&
+        Gif.cache.caches.containsKey(_getImageKey(widget.image))) {
+      gif = Gif.cache.caches[_getImageKey(widget.image)]!;
+    }
+    if (widget.useGlobalCache) {
+      gif = GifCacheManager().getGifByPath(_getImageKey(widget.image));
+    }
+    if (gif == null) {
+      gif = await _fetchFrames(widget.image);
+    }
 
     if (!mounted) return;
 
-    if (widget.useCache)
-      Gif.cache.caches.putIfAbsent(_getImageKey(widget.image), () => gif);
+    if (widget.useCache) {
+      Gif.cache.caches.putIfAbsent(_getImageKey(widget.image), () => gif!);
+    }
 
     setState(() {
-      _frames = gif.frames;
+      _frames = gif!.frames;
       _controller.duration = widget.fps != null
           ? Duration(
               milliseconds: (_frames.length / widget.fps! * 1000).round())
@@ -312,42 +310,5 @@ class _GifState extends State<Gif> with SingleTickerProviderStateMixin {
         widget.onFetchCompleted!();
       }
     });
-  }
-
-  /// Fetches the single gif frames and saves them into the [GifCache] of [Gif]
-  static Future<GifInfo> _fetchFrames(ImageProvider provider) async {
-    late final Uint8List bytes;
-
-    if (provider is NetworkImage) {
-      final Uri resolved = Uri.base.resolve(provider.url);
-      final Response response = await _httpClient.get(
-        resolved,
-        headers: provider.headers,
-      );
-      bytes = response.bodyBytes;
-    } else if (provider is AssetImage) {
-      AssetBundleImageKey key =
-          await provider.obtainKey(const ImageConfiguration());
-      bytes = (await key.bundle.load(key.name)).buffer.asUint8List();
-    } else if (provider is FileImage) {
-      bytes = await provider.file.readAsBytes();
-    } else if (provider is MemoryImage) {
-      bytes = provider.bytes;
-    }
-
-    final buffer = await ImmutableBuffer.fromUint8List(bytes);
-    Codec codec = await PaintingBinding.instance.instantiateImageCodecWithSize(
-      buffer,
-    );
-    List<ImageInfo> infos = [];
-    Duration duration = Duration();
-
-    for (int i = 0; i < codec.frameCount; i++) {
-      FrameInfo frameInfo = await codec.getNextFrame();
-      infos.add(ImageInfo(image: frameInfo.image));
-      duration += frameInfo.duration;
-    }
-
-    return GifInfo(frames: infos, duration: duration);
   }
 }

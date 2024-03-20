@@ -1,3 +1,6 @@
+## 2.4.0
+* Add Global caching system in `GifCacheManager` to full preload Gif.
+
 ## 2.3.0
 * fixed remove instantiateImageCodec method on Flutter 3.16 and warning on Flutter web for using dart:io http client
 

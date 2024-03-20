@@ -1,10 +1,10 @@
-name: gif
-description: Control a gif using flutter animation controller. You can either specify a fixed duration or set the framerate of the playback.
-version: 2.3.0
-homepage: https://github.com/pierluigizagaria/flutter_gif
+name: cached_gif
+description: Forked project with control a gif using flutter animation controller. You can either specify a fixed duration or set the framerate of the playback.
+version: 2.4.0
+homepage: https://github.com/Darkildo/flutter_gif
 
 environment:
-  sdk: ">=2.12.0 <3.0.0"
+  sdk: ">=2.12.0 <4.0.0"
 
 dependencies:
   flutter:
